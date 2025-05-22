@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced 2D Shooter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #1a202c; /* Dark background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        canvas {
+            background-color: #2d3748; /* Slightly lighter dark background for game area */
+            display: block;
+            border-radius: 12px; /* Rounded corners for canvas */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90vw; /* Responsive width */
+            max-height: 80vh; /* Responsive height */
+            aspect-ratio: 16 / 9; /* Maintain aspect ratio */
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background-color: #202b38;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        }
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            color: #e2e8f0; /* Light text color */
+            font-size: 1.125rem; /* text-lg */
+            font-weight: 600; /* font-semibold */
+        }
+        .game-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 2rem;
+            text-align: center;
+            border-radius: 12px;
+            z-index: 10; /* Ensure it's above the canvas */
+        }
+        .game-overlay h2 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: #48bb78; /* Green for win */
+        }
+        .game-overlay.lose h2 {
+            color: #ef4444; /* Red for lose */
+        }
+        .game-overlay button {
+            padding: 12px 24px;
+            font-size: 1.5rem;
+            background-color: #38a169; /* Green button */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .game-overlay button:hover {
+            background-color: #2f855a;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <div id="scoreDisplay" class="px-4 py-2 bg-gray-700 rounded-md shadow-md">Score: 0</div>
+            <div id="healthDisplay" class="px-4 py-2 bg-gray-700 rounded-md shadow-md">Health: 100</div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="gameOverlay" class="game-overlay">
+            <h2 id="overlayTitle">Advanced 2D Shooter</h2>
+            <p id="overlayMessage" class="text-lg mb-8">Press 'W', 'A', 'S', 'D' or Arrow Keys to move. Click to shoot.</p>
+            <button id="startButton">Start Game</button>
+        </div>
+    </div>
+
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state variables
+        let gameRunning = false;
+        let score = 0;
+        let playerHealth = 100;
+        let lastEnemySpawnTime = 0;
+        const enemySpawnInterval = 2000; // milliseconds
+        let animationFrameId;
+
+        // UI elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const healthDisplay = document.getElementById('healthDisplay');
+        const gameOverlay = document.getElementById('gameOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayMessage = document.getElementById('overlayMessage');
+        const startButton = document.getElementById('startButton');
+
+        // Player properties
+        const player = {
+            x: 0,
+            y: 0,
+            width: 40,
+            height: 40,
+            speed: 5,
+            color: '#4299e1', // Blue
+            dx: 0, // direction x
+            dy: 0, // direction y
+            shootCooldown: 200, // milliseconds
+            lastShotTime: 0
+        };
+
+        // Arrays for game objects
+        let projectiles = [];
+        let enemies = [];
+
+        // --- Game Utility Functions ---
+
+        /**
+         * Resizes the canvas to fit the window and updates player position.
+         */
+        function resizeCanvas() {
+            canvas.width = Math.min(window.innerWidth * 0.8, 1000); // Max width 1000px
+            canvas.height = Math.min(window.innerHeight * 0.7, 600); // Max height 600px
+            // Center player on resize
+            player.x = canvas.width / 2 - player.width / 2;
+            player.y = canvas.height - player.height - 20;
+        }
+
+        /**
+         * Generates a random integer between min (inclusive) and max (inclusive).
+         * @param {number} min - The minimum value.
+         * @param {number} max - The maximum value.
+         * @returns {number} A random integer.
+         */
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        /**
+         * Checks for collision between two rectangles.
+         * @param {object} rect1 - First rectangle {x, y, width, height}.
+         * @param {object} rect2 - Second rectangle {x, y, width, height}.
+         * @returns {boolean} True if rectangles overlap, false otherwise.
+         */
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // --- Game Object Classes (simplified for direct use in script) ---
+
+        /**
+         * Represents a projectile fired by player or enemy.
+         * @param {number} x - X coordinate.
+         * @param {number} y - Y coordinate.
+         * @param {number} targetX - Target X for direction.
+         * @param {number} targetY - Target Y for direction.
+         * @param {string} color - Color of the projectile.
+         * @param {boolean} isPlayerProjectile - True if fired by player.
+         */
+        function Projectile(x, y, targetX, targetY, color, isPlayerProjectile) {
+            this.x = x;
+            this.y = y;
+            this.radius = 5;
+            this.speed = 7;
+            this.color = color;
+            this.isPlayerProjectile = isPlayerProjectile;
+
+            // Calculate direction vector
+            const angle = Math.atan2(targetY - y, targetX - x);
+            this.dx = Math.cos(angle) * this.speed;
+            this.dy = Math.sin(angle) * this.speed;
+
+            this.draw = function() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            };
+
+            this.update = function() {
+                this.x += this.dx;
+                this.y += this.dy;
+            };
+        }
+
+        /**
+         * Represents an enemy character.
+         * @param {number} x - X coordinate.
+         * @param {number} y - Y coordinate.
+         * @param {number} width - Width of the enemy.
+         * @param {number} height - Height of the enemy.
+         * @param {number} speed - Movement speed.
+         * @param {number} health - Enemy health.
+         * @param {string} color - Color of the enemy.
+         */
+        function Enemy(x, y, width, height, speed, health, color) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.speed = speed;
+            this.health = health;
+            this.maxHealth = health;
+            this.color = color;
+            this.shootCooldown = getRandomInt(1000, 3000); // milliseconds
+            this.lastShotTime = Date.now();
+
+            this.draw = function() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Draw health bar
+                const healthBarWidth = this.width;
+                const healthBarHeight = 5;
+                const healthPercentage = this.health / this.maxHealth;
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x, this.y - healthBarHeight - 2, healthBarWidth, healthBarHeight);
+                ctx.fillStyle = 'lime';
+                ctx.fillRect(this.x, this.y - healthBarHeight - 2, healthBarWidth * healthPercentage, healthBarHeight);
+            };
+
+            this.update = function(playerX, playerY) {
+                // Simple enemy movement: move towards player's X, then down
+                if (this.x < playerX) {
+                    this.x += Math.min(this.speed, playerX - this.x);
+                } else if (this.x > playerX) {
+                    this.x -= Math.min(this.speed, this.x - playerX);
+                }
+                this.y += this.speed * 0.5; // Move downwards slowly
+
+                // Enemies shoot at player
+                if (Date.now() - this.lastShotTime > this.shootCooldown) {
+                    projectiles.push(new Projectile(this.x + this.width / 2, this.y + this.height, playerX, playerY, 'orange', false));
+                    this.lastShotTime = Date.now();
+                }
+            };
+
+            this.takeDamage = function(amount) {
+                this.health -= amount;
+                if (this.health < 0) {
+                    this.health = 0;
+                }
+            };
+
+            this.isAlive = function() {
+                return this.health > 0;
+            };
+        }
+
+        // --- Game Loop and Updates ---
+
+        /**
+         * Updates all game objects' positions and states.
+         */
+        function updateGame() {
+            // Update player position
+            player.x += player.dx;
+            player.y += player.dy;
+
+            // Keep player within canvas bounds
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            if (player.y < 0) player.y = 0;
+            if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+
+            // Update projectiles
+            projectiles = projectiles.filter(p => {
+                p.update();
+                // Remove projectiles that are off-screen
+                return p.x > -p.radius && p.x < canvas.width + p.radius &&
+                       p.y > -p.radius && p.y < canvas.height + p.radius;
+            });
+
+            // Update enemies and spawn new ones
+            const currentTime = Date.now();
+            if (currentTime - lastEnemySpawnTime > enemySpawnInterval) {
+                const enemyWidth = getRandomInt(30, 60);
+                const enemyHeight = getRandomInt(30, 60);
+                const enemyX = getRandomInt(0, canvas.width - enemyWidth);
+                const enemyY = -enemyHeight; // Start above canvas
+                const enemySpeed = getRandomInt(1, 3);
+                const enemyHealth = getRandomInt(30, 80);
+                enemies.push(new Enemy(enemyX, enemyY, enemyWidth, enemyHeight, enemySpeed, enemyHealth, '#e53e3e')); // Red
+                lastEnemySpawnTime = currentTime;
+            }
+
+            enemies = enemies.filter(enemy => {
+                enemy.update(player.x + player.width / 2, player.y + player.height / 2);
+                // Remove enemies that are off-screen or defeated
+                return enemy.y < canvas.height + enemy.height && enemy.isAlive();
+            });
+
+            // --- Collision Detection ---
+
+            // Player Projectile vs Enemy
+            projectiles.forEach((p, pIndex) => {
+                if (p.isPlayerProjectile) {
+                    enemies.forEach((e, eIndex) => {
+                        if (e.isAlive() && checkCollision({x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2}, e)) {
+                            e.takeDamage(10); // Player projectile damage
+                            projectiles.splice(pIndex, 1); // Remove projectile
+                            score += 10; // Increase score for hit
+                            if (!e.isAlive()) {
+                                score += 50; // Bonus for defeating enemy
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Enemy Projectile vs Player
+            projectiles.forEach((p, pIndex) => {
+                if (!p.isPlayerProjectile) {
+                    if (checkCollision({x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2}, player)) {
+                        playerHealth -= 10; // Enemy projectile damage
+                        projectiles.splice(pIndex, 1); // Remove projectile
+                    }
+                }
+            });
+
+            // Enemy vs Player (direct collision)
+            enemies.forEach(e => {
+                if (e.isAlive() && checkCollision(player, e)) {
+                    playerHealth -= 2; // Continuous damage on contact
+                }
+            });
+
+            // Update UI
+            scoreDisplay.textContent = `Score: ${score}`;
+            healthDisplay.textContent = `Health: ${playerHealth}`;
+
+            // Check game over
+            if (playerHealth <= 0) {
+                endGame(false); // Player lost
+            }
+            // Add a win condition (e.g., reach a certain score)
+            if (score >= 2000) {
+                endGame(true); // Player won
+            }
+        }
+
+        /**
+         * Draws all game objects on the canvas.
+         */
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            // Draw player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Draw projectiles
+            projectiles.forEach(p => p.draw());
+
+            // Draw enemies
+            enemies.forEach(e => e.draw());
+        }
+
+        /**
+         * Main animation loop.
+         */
+        function animate() {
+            if (!gameRunning) return;
+
+            updateGame();
+            drawGame();
+
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        /**
+         * Starts a new game.
+         */
+        function startGame() {
+            // Reset game state
+            score = 0;
+            playerHealth = 100;
+            projectiles = [];
+            enemies = [];
+            player.x = canvas.width / 2 - player.width / 2;
+            player.y = canvas.height - player.height - 20;
+            player.dx = 0;
+            player.dy = 0;
+            lastEnemySpawnTime = Date.now();
+
+            // Hide overlay and start game
+            gameOverlay.style.display = 'none';
+            gameRunning = true;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId); // Cancel any previous animation frame
+            }
+            animate();
+        }
+
+        /**
+         * Ends the game and displays the result.
+         * @param {boolean} won - True if the player won, false otherwise.
+         */
+        function endGame(won) {
+            gameRunning = false;
+            cancelAnimationFrame(animationFrameId); // Stop the animation loop
+
+            gameOverlay.style.display = 'flex';
+            if (won) {
+                overlayTitle.textContent = 'You Win!';
+                overlayTitle.classList.remove('lose');
+                overlayTitle.classList.add('win');
+                overlayMessage.textContent = `Congratulations! You reached a score of ${score}!`;
+            } else {
+                overlayTitle.textContent = 'Game Over!';
+                overlayTitle.classList.remove('win');
+                overlayTitle.classList.add('lose');
+                overlayMessage.textContent = `Your score: ${score}. Better luck next time!`;
+            }
+            startButton.textContent = 'Play Again';
+        }
+
+        // --- Event Listeners ---
+
+        // Resize canvas on window resize
+        window.addEventListener('resize', resizeCanvas);
+
+        // Player movement input
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            // Prevent default scroll behavior for arrow keys
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+            }
+            updatePlayerMovement();
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+            updatePlayerMovement();
+        });
+
+        /**
+         * Updates player's direction based on pressed keys.
+         */
+        function updatePlayerMovement() {
+            player.dx = 0;
+            player.dy = 0;
+            if (keys['ArrowLeft'] || keys['a']) player.dx = -player.speed;
+            if (keys['ArrowRight'] || keys['d']) player.dx = player.speed;
+            if (keys['ArrowUp'] || keys['w']) player.dy = -player.speed;
+            if (keys['ArrowDown'] || keys['s']) player.dy = player.speed;
+        }
+
+        // Player shooting input (mouse click)
+        canvas.addEventListener('mousedown', (e) => {
+            if (!gameRunning) return;
+
+            const currentTime = Date.now();
+            if (currentTime - player.lastShotTime > player.shootCooldown) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                projectiles.push(new Projectile(
+                    player.x + player.width / 2,
+                    player.y + player.height / 2,
+                    mouseX,
+                    mouseY,
+                    'cyan', // Player projectile color
+                    true
+                ));
+                player.lastShotTime = currentTime;
+            }
+        });
+
+        // Start button click
+        startButton.addEventListener('click', startGame);
+
+        // Initial setup
+        resizeCanvas(); // Set initial canvas size and player position
+        // Display initial overlay
+        gameOverlay.style.display = 'flex';
+        overlayTitle.textContent = 'Advanced 2D Shooter';
+        overlayMessage.textContent = "Press 'W', 'A', 'S', 'D' or Arrow Keys to move. Click to shoot.";
+        startButton.textContent = 'Start Game';
+
+        // Ensure the animation loop is started after getting the window onload event.
+        window.onload = function () {
+            // No need to call animate() here as it's called by startGame()
+            // when the button is clicked.
+        }
+    </script>
+</body>
+</html>
