@@ -16,16 +16,7 @@
             margin: 0;
             overflow: hidden; /* Prevent scrollbars */
         }
-        canvas {
-            background-color: #2d3748; /* Slightly lighter dark background for game area */
-            display: block;
-            border-radius: 12px; /* Rounded corners for canvas */
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            max-width: 90vw; /* Responsive width */
-            max-height: 80vh; /* Responsive height */
-            aspect-ratio: 16 / 9; /* Maintain aspect ratio */
-        }
-        .game-container {
+        .game-wrapper {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -34,6 +25,17 @@
             background-color: #202b38;
             border-radius: 16px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        }
+        canvas {
+            background-color: #2d3748; /* Slightly lighter dark background for game area */
+            display: block;
+            border-radius: 12px; /* Rounded corners for canvas */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90vw; /* Responsive width */
+            max-height: 80vh; /* Responsive height */
+            aspect-ratio: 16 / 9; /* Maintain aspect ratio */
+            position: relative; /* For background scrolling */
+            overflow: hidden;
         }
         .game-info {
             display: flex;
@@ -44,13 +46,19 @@
             font-size: 1.125rem; /* text-lg */
             font-weight: 600; /* font-semibold */
         }
+        .game-info > div {
+            padding: 8px 16px;
+            background-color: #4a5568; /* Darker gray for info boxes */
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
         .game-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.85); /* Darker overlay */
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -62,63 +70,120 @@
             z-index: 10; /* Ensure it's above the canvas */
         }
         .game-overlay h2 {
-            font-size: 3rem;
-            margin-bottom: 20px;
+            font-size: 3.5rem; /* Larger title */
+            margin-bottom: 25px;
             color: #48bb78; /* Green for win */
+            text-shadow: 0 0 10px rgba(72, 187, 120, 0.7); /* Glow effect */
         }
         .game-overlay.lose h2 {
             color: #ef4444; /* Red for lose */
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
+        }
+        .game-overlay p {
+            font-size: 1.25rem;
+            margin-bottom: 30px;
+            max-width: 70%;
         }
         .game-overlay button {
-            padding: 12px 24px;
-            font-size: 1.5rem;
-            background-color: #38a169; /* Green button */
+            padding: 14px 30px; /* Larger button */
+            font-size: 1.6rem;
+            background-image: linear-gradient(to right, #38a169, #48bb78); /* Gradient button */
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px; /* More rounded */
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
         }
         .game-overlay button:hover {
-            background-color: #2f855a;
+            background-image: linear-gradient(to right, #2f855a, #38a169);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        .game-overlay button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+        .game-overlay button::after { /* Bubble effect on hover */
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 50%;
+            transform: scale(1) translate(-50%, -50%);
+            transition: all 0.5s ease-out;
+        }
+        .game-overlay button:hover::after {
+            transform: scale(20) translate(-50%, -50%);
+            opacity: 1;
+        }
+
+        /* Background stars for scrolling effect */
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 0; /* Hidden initially */
+            animation: twinkle 4s infinite ease-in-out;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.8; }
         }
     </style>
 </head>
 <body>
-    <div class="game-container">
+    <div class="game-wrapper">
         <div class="game-info">
-            <div id="scoreDisplay" class="px-4 py-2 bg-gray-700 rounded-md shadow-md">Score: 0</div>
-            <div id="healthDisplay" class="px-4 py-2 bg-gray-700 rounded-md shadow-md">Health: 100</div>
+            <div id="scoreDisplay">Score: 0</div>
+            <div id="healthDisplay">Health: 100</div>
+            <div id="waveDisplay">Wave: 1</div>
         </div>
         <canvas id="gameCanvas"></canvas>
 
         <div id="gameOverlay" class="game-overlay">
             <h2 id="overlayTitle">Advanced 2D Shooter</h2>
-            <p id="overlayMessage" class="text-lg mb-8">Press 'W', 'A', 'S', 'D' or Arrow Keys to move. Click to shoot.</p>
+            <p id="overlayMessage">
+                Press 'W', 'A', 'S', 'D' or Arrow Keys to move.<br>
+                Click to shoot. Survive the waves of enemies!
+            </p>
             <button id="startButton">Start Game</button>
         </div>
     </div>
 
     <script>
-        // Get canvas and context
+        // --- Game Setup ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+
+        // UI elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const healthDisplay = document.getElementById('healthDisplay');
+        const waveDisplay = document.getElementById('waveDisplay');
+        const gameOverlay = document.getElementById('gameOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayMessage = document.getElementById('overlayMessage');
+        const startButton = document.getElementById('startButton');
 
         // Game state variables
         let gameRunning = false;
         let score = 0;
         let playerHealth = 100;
-        let lastEnemySpawnTime = 0;
-        const enemySpawnInterval = 2000; // milliseconds
+        let currentWave = 1;
+        let enemiesToSpawnThisWave = 0;
+        let enemiesSpawnedThisWave = 0;
+        let enemiesDefeatedThisWave = 0;
+        let waveStartTime = 0;
         let animationFrameId;
-
-        // UI elements
-        const scoreDisplay = document.getElementById('scoreDisplay');
-        const healthDisplay = document.getElementById('healthDisplay');
-        const gameOverlay = document.getElementById('gameOverlay');
-        const overlayTitle = document.getElementById('overlayTitle');
-        const overlayMessage = document.getElementById('overlayMessage');
-        const startButton = document.getElementById('startButton');
+        let backgroundScrollY = 0;
+        const backgroundScrollSpeed = 0.5; // Pixels per frame
 
         // Player properties
         const player = {
@@ -131,12 +196,36 @@
             dx: 0, // direction x
             dy: 0, // direction y
             shootCooldown: 200, // milliseconds
-            lastShotTime: 0
+            lastShotTime: 0,
+            fireRateMultiplier: 1, // For power-ups
+            shielded: false,
+            shieldDuration: 0,
+            shieldColor: 'rgba(144, 202, 249, 0.5)' // Light blue transparent
         };
 
         // Arrays for game objects
         let projectiles = [];
         let enemies = [];
+        let powerUps = [];
+        let explosions = [];
+
+        // --- Audio Context and Sounds (Tone.js is not available in this environment, using simple Audio objects) ---
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(frequency, duration, type = 'sine', volume = 0.1) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + duration / 1000);
+        }
 
         // --- Game Utility Functions ---
 
@@ -177,67 +266,94 @@
         // --- Game Object Classes (simplified for direct use in script) ---
 
         /**
-         * Represents a projectile fired by player or enemy.
-         * @param {number} x - X coordinate.
-         * @param {number} y - Y coordinate.
-         * @param {number} targetX - Target X for direction.
-         * @param {number} targetY - Target Y for direction.
-         * @param {string} color - Color of the projectile.
-         * @param {boolean} isPlayerProjectile - True if fired by player.
+         * Base class for moving entities.
          */
-        function Projectile(x, y, targetX, targetY, color, isPlayerProjectile) {
-            this.x = x;
-            this.y = y;
-            this.radius = 5;
-            this.speed = 7;
-            this.color = color;
-            this.isPlayerProjectile = isPlayerProjectile;
+        class Entity {
+            constructor(x, y, width, height, color, speed) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.color = color;
+                this.speed = speed;
+            }
 
-            // Calculate direction vector
-            const angle = Math.atan2(targetY - y, targetX - x);
-            this.dx = Math.cos(angle) * this.speed;
-            this.dy = Math.sin(angle) * this.speed;
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+        }
 
-            this.draw = function() {
+        class Projectile extends Entity {
+            constructor(x, y, targetX, targetY, color, isPlayerProjectile, damage) {
+                super(x, y, 10, 10, color, 10); // Projectiles are 10x10
+                this.radius = 5;
+                this.isPlayerProjectile = isPlayerProjectile;
+                this.damage = damage;
+
+                // Calculate direction vector
+                const angle = Math.atan2(targetY - y, targetX - x);
+                this.dx = Math.cos(angle) * this.speed;
+                this.dy = Math.sin(angle) * this.speed;
+            }
+
+            draw() {
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.arc(this.x + this.radius, this.y + this.radius, this.radius, 0, Math.PI * 2);
                 ctx.fillStyle = this.color;
                 ctx.fill();
                 ctx.closePath();
-            };
+            }
 
-            this.update = function() {
+            update() {
                 this.x += this.dx;
                 this.y += this.dy;
-            };
+            }
         }
 
-        /**
-         * Represents an enemy character.
-         * @param {number} x - X coordinate.
-         * @param {number} y - Y coordinate.
-         * @param {number} width - Width of the enemy.
-         * @param {number} height - Height of the enemy.
-         * @param {number} speed - Movement speed.
-         * @param {number} health - Enemy health.
-         * @param {string} color - Color of the enemy.
-         */
-        function Enemy(x, y, width, height, speed, health, color) {
-            this.x = x;
-            this.y = y;
-            this.width = width;
-            this.height = height;
-            this.speed = speed;
-            this.health = health;
-            this.maxHealth = health;
-            this.color = color;
-            this.shootCooldown = getRandomInt(1000, 3000); // milliseconds
-            this.lastShotTime = Date.now();
+        class Enemy extends Entity {
+            constructor(type) {
+                let x, y, width, height, speed, health, color, shootCooldown;
+                let dropsPowerUp = false;
 
-            this.draw = function() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                if (type === 'basic') {
+                    width = getRandomInt(30, 50);
+                    height = getRandomInt(30, 50);
+                    speed = getRandomInt(1, 2);
+                    health = getRandomInt(30, 60);
+                    color = '#e53e3e'; // Red
+                    shootCooldown = getRandomInt(1500, 3000);
+                } else if (type === 'fast') {
+                    width = getRandomInt(25, 40);
+                    height = getRandomInt(25, 40);
+                    speed = getRandomInt(3, 5);
+                    health = getRandomInt(20, 40);
+                    color = '#ecc94b'; // Yellow
+                    shootCooldown = getRandomInt(1000, 2000);
+                } else if (type === 'tank') {
+                    width = getRandomInt(50, 70);
+                    height = getRandomInt(50, 70);
+                    speed = getRandomInt(0.5, 1.5);
+                    health = getRandomInt(80, 150);
+                    color = '#805ad5'; // Purple
+                    shootCooldown = getRandomInt(2000, 4000);
+                    dropsPowerUp = true; // Tank enemies have a higher chance to drop power-ups
+                }
 
+                x = getRandomInt(0, canvas.width - width);
+                y = -height; // Start above canvas
+
+                super(x, y, width, height, color, speed);
+                this.type = type;
+                this.health = health;
+                this.maxHealth = health;
+                this.shootCooldown = shootCooldown;
+                this.lastShotTime = Date.now();
+                this.dropsPowerUp = dropsPowerUp;
+            }
+
+            draw() {
+                super.draw();
                 // Draw health bar
                 const healthBarWidth = this.width;
                 const healthBarHeight = 5;
@@ -246,9 +362,9 @@
                 ctx.fillRect(this.x, this.y - healthBarHeight - 2, healthBarWidth, healthBarHeight);
                 ctx.fillStyle = 'lime';
                 ctx.fillRect(this.x, this.y - healthBarHeight - 2, healthBarWidth * healthPercentage, healthBarHeight);
-            };
+            }
 
-            this.update = function(playerX, playerY) {
+            update(playerX, playerY) {
                 // Simple enemy movement: move towards player's X, then down
                 if (this.x < playerX) {
                     this.x += Math.min(this.speed, playerX - this.x);
@@ -259,21 +375,117 @@
 
                 // Enemies shoot at player
                 if (Date.now() - this.lastShotTime > this.shootCooldown) {
-                    projectiles.push(new Projectile(this.x + this.width / 2, this.y + this.height, playerX, playerY, 'orange', false));
+                    projectiles.push(new Projectile(this.x + this.width / 2, this.y + this.height, playerX, playerY, 'orange', false, 15));
                     this.lastShotTime = Date.now();
                 }
-            };
+            }
 
-            this.takeDamage = function(amount) {
+            takeDamage(amount) {
                 this.health -= amount;
                 if (this.health < 0) {
                     this.health = 0;
                 }
-            };
+                playSound(200, 50, 'square', 0.2); // Hit sound
+            }
 
-            this.isAlive = function() {
+            isAlive() {
                 return this.health > 0;
-            };
+            }
+        }
+
+        class PowerUp extends Entity {
+            constructor(x, y, type) {
+                super(x, y, 20, 20, '#a0aec0', 2); // Gray base color
+                this.type = type;
+                this.color = this.getPowerUpColor(type);
+            }
+
+            getPowerUpColor(type) {
+                switch(type) {
+                    case 'fire_rate': return '#f6ad55'; // Orange
+                    case 'shield': return '#63b3ed';    // Light blue
+                    case 'health': return '#48bb78';    // Green
+                    default: return '#a0aec0';
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let symbol = '';
+                switch(this.type) {
+                    case 'fire_rate': symbol = 'F'; break;
+                    case 'shield': symbol = 'S'; break;
+                    case 'health': symbol = '+'; break;
+                }
+                ctx.fillText(symbol, this.x + this.width / 2, this.y + this.height / 2);
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+
+            applyEffect(player) {
+                let message = '';
+                switch(this.type) {
+                    case 'fire_rate':
+                        player.fireRateMultiplier = 0.5; // Double fire rate
+                        player.shootCooldown = 100;
+                        setTimeout(() => {
+                            player.fireRateMultiplier = 1;
+                            player.shootCooldown = 200;
+                            console.log("Fire rate boost ended.");
+                        }, 5000); // 5 seconds duration
+                        message = "Fire rate boosted!";
+                        playSound(800, 100, 'triangle', 0.3); // Power-up sound
+                        break;
+                    case 'shield':
+                        player.shielded = true;
+                        player.shieldDuration = Date.now() + 7000; // 7 seconds duration
+                        message = "Shield activated!";
+                        playSound(1000, 150, 'sine', 0.3); // Shield sound
+                        break;
+                    case 'health':
+                        player.health = Math.min(player.max_health, player.health + 25);
+                        message = "Health restored!";
+                        playSound(600, 100, 'square', 0.3); // Health sound
+                        break;
+                }
+                console.log(message);
+                return message;
+            }
+        }
+
+        class Explosion {
+            constructor(x, y, size, color) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.color = color;
+                this.frame = 0;
+                this.maxFrames = 10; // How many frames the explosion lasts
+            }
+
+            draw() {
+                const currentSize = this.size * (this.frame / this.maxFrames);
+                const opacity = 1 - (this.frame / this.maxFrames);
+                ctx.fillStyle = `rgba(${this.color[0]}, ${this.color[1]}, ${this.color[2]}, ${opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            update() {
+                this.frame++;
+            }
+
+            isFinished() {
+                return this.frame >= this.maxFrames;
+            }
         }
 
         // --- Game Loop and Updates ---
@@ -282,6 +494,9 @@
          * Updates all game objects' positions and states.
          */
         function updateGame() {
+            // Update background scroll
+            backgroundScrollY = (backgroundScrollY + backgroundScrollSpeed) % canvas.height;
+
             // Update player position
             player.x += player.dx;
             player.y += player.dy;
@@ -296,21 +511,23 @@
             projectiles = projectiles.filter(p => {
                 p.update();
                 // Remove projectiles that are off-screen
-                return p.x > -p.radius && p.x < canvas.width + p.radius &&
-                       p.y > -p.radius && p.y < canvas.height + p.radius;
+                return p.x > -p.width && p.x < canvas.width + p.width &&
+                       p.y > -p.height && p.y < canvas.height + p.height;
             });
 
             // Update enemies and spawn new ones
             const currentTime = Date.now();
-            if (currentTime - lastEnemySpawnTime > enemySpawnInterval) {
-                const enemyWidth = getRandomInt(30, 60);
-                const enemyHeight = getRandomInt(30, 60);
-                const enemyX = getRandomInt(0, canvas.width - enemyWidth);
-                const enemyY = -enemyHeight; // Start above canvas
-                const enemySpeed = getRandomInt(1, 3);
-                const enemyHealth = getRandomInt(30, 80);
-                enemies.push(new Enemy(enemyX, enemyY, enemyWidth, enemyHeight, enemySpeed, enemyHealth, '#e53e3e')); // Red
-                lastEnemySpawnTime = currentTime;
+            if (enemiesSpawnedThisWave < enemiesToSpawnThisWave && currentTime - waveStartTime > (enemiesSpawnedThisWave * (2000 - currentWave * 50))) { // Faster spawning in later waves
+                let enemyType = 'basic';
+                if (currentWave >= 2 && getRandomInt(0, 100) < 30) { // 30% chance for fast enemy from wave 2
+                    enemyType = 'fast';
+                }
+                if (currentWave >= 3 && getRandomInt(0, 100) < 20) { // 20% chance for tank enemy from wave 3
+                    enemyType = 'tank';
+                }
+                enemies.push(new Enemy(enemyType));
+                enemiesSpawnedThisWave++;
+                waveStartTime = currentTime; // Reset spawn timer for next enemy
             }
 
             enemies = enemies.filter(enemy => {
@@ -319,18 +536,40 @@
                 return enemy.y < canvas.height + enemy.height && enemy.isAlive();
             });
 
+            // Update power-ups
+            powerUps = powerUps.filter(pu => {
+                pu.update();
+                return pu.y < canvas.height; // Remove if off-screen
+            });
+
+            // Update explosions
+            explosions = explosions.filter(exp => {
+                exp.update();
+                return !exp.isFinished();
+            });
+
             // --- Collision Detection ---
 
             // Player Projectile vs Enemy
             projectiles.forEach((p, pIndex) => {
                 if (p.isPlayerProjectile) {
                     enemies.forEach((e, eIndex) => {
-                        if (e.isAlive() && checkCollision({x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2}, e)) {
-                            e.takeDamage(10); // Player projectile damage
+                        if (e.isAlive() && checkCollision(p, e)) {
+                            e.takeDamage(p.damage);
                             projectiles.splice(pIndex, 1); // Remove projectile
                             score += 10; // Increase score for hit
                             if (!e.isAlive()) {
                                 score += 50; // Bonus for defeating enemy
+                                enemiesDefeatedThisWave++;
+                                explosions.push(new Explosion(e.x + e.width / 2, e.y + e.height / 2, Math.max(e.width, e.height) * 1.5, [255, 165, 0])); // Orange explosion
+                                playSound(100, 150, 'sawtooth', 0.4); // Explosion sound
+
+                                // Drop power-up
+                                if (e.dropsPowerUp || getRandomInt(0, 100) < 15) { // 15% chance for any enemy to drop
+                                    const powerUpTypes = ['fire_rate', 'shield', 'health'];
+                                    const randomType = powerUpTypes[getRandomInt(0, powerUpTypes.length - 1)];
+                                    powerUps.push(new PowerUp(e.x + e.width / 2 - 10, e.y + e.height / 2 - 10, randomType));
+                                }
                             }
                         }
                     });
@@ -340,8 +579,14 @@
             // Enemy Projectile vs Player
             projectiles.forEach((p, pIndex) => {
                 if (!p.isPlayerProjectile) {
-                    if (checkCollision({x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2}, player)) {
-                        playerHealth -= 10; // Enemy projectile damage
+                    if (checkCollision(p, player)) {
+                        if (!player.shielded) {
+                            playerHealth -= p.damage;
+                            playSound(150, 70, 'triangle', 0.2); // Player hit sound
+                        } else {
+                            console.log("Shield blocked damage!");
+                            playSound(1200, 50, 'sine', 0.3); // Shield block sound
+                        }
                         projectiles.splice(pIndex, 1); // Remove projectile
                     }
                 }
@@ -350,21 +595,43 @@
             // Enemy vs Player (direct collision)
             enemies.forEach(e => {
                 if (e.isAlive() && checkCollision(player, e)) {
-                    playerHealth -= 2; // Continuous damage on contact
+                    if (!player.shielded) {
+                        playerHealth -= 2; // Continuous damage on contact
+                        playSound(150, 70, 'triangle', 0.2); // Player hit sound
+                    } else {
+                        console.log("Shield blocked collision damage!");
+                        playSound(1200, 50, 'sine', 0.3); // Shield block sound
+                    }
                 }
             });
+
+            // Player vs Power-up
+            powerUps.forEach((pu, puIndex) => {
+                if (checkCollision(player, pu)) {
+                    pu.applyEffect(player);
+                    powerUps.splice(puIndex, 1); // Remove power-up
+                }
+            });
+
+            // Update shield status
+            if (player.shielded && Date.now() > player.shieldDuration) {
+                player.shielded = false;
+                console.log("Shield deactivated.");
+            }
 
             // Update UI
             scoreDisplay.textContent = `Score: ${score}`;
             healthDisplay.textContent = `Health: ${playerHealth}`;
+            waveDisplay.textContent = `Wave: ${currentWave}`;
+
+            // Check wave completion
+            if (enemiesDefeatedThisWave >= enemiesToSpawnThisWave && enemies.length === 0) {
+                startNextWave();
+            }
 
             // Check game over
             if (playerHealth <= 0) {
                 endGame(false); // Player lost
-            }
-            // Add a win condition (e.g., reach a certain score)
-            if (score >= 2000) {
-                endGame(true); // Player won
             }
         }
 
@@ -374,15 +641,46 @@
         function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
 
+            // Draw scrolling background (simple stars)
+            ctx.fillStyle = '#1a202c'; // Dark background for the canvas
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw stars (simple dots for now)
+            for (let i = 0; i < 50; i++) {
+                const starX = (i * 15 + backgroundScrollY * 0.1) % canvas.width; // Slower horizontal scroll
+                const starY = (i * 10 + backgroundScrollY) % canvas.height;
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.3 + (Math.sin(i + backgroundScrollY * 0.05) * 0.3)) + ')'; // Twinkle effect
+                ctx.beginPath();
+                ctx.arc(starX, starY, 1 + (Math.sin(i + backgroundScrollY * 0.02) * 0.5), 0, Math.PI * 2); // Vary size
+                ctx.fill();
+            }
+
             // Draw player
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Draw player shield if active
+            if (player.shielded) {
+                ctx.fillStyle = player.shieldColor;
+                ctx.beginPath();
+                ctx.arc(player.x + player.width / 2, player.y + player.height / 2, player.width * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#90caf9'; // Lighter blue outline
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
 
             // Draw projectiles
             projectiles.forEach(p => p.draw());
 
             // Draw enemies
             enemies.forEach(e => e.draw());
+
+            // Draw power-ups
+            powerUps.forEach(pu => pu.draw());
+
+            // Draw explosions
+            explosions.forEach(exp => exp.draw());
         }
 
         /**
@@ -404,13 +702,19 @@
             // Reset game state
             score = 0;
             playerHealth = 100;
+            currentWave = 0; // Will be incremented to 1 by startNextWave
             projectiles = [];
             enemies = [];
+            powerUps = [];
+            explosions = [];
             player.x = canvas.width / 2 - player.width / 2;
             player.y = canvas.height - player.height - 20;
             player.dx = 0;
             player.dy = 0;
-            lastEnemySpawnTime = Date.now();
+            player.fireRateMultiplier = 1;
+            player.shootCooldown = 200;
+            player.shielded = false;
+            player.shieldDuration = 0;
 
             // Hide overlay and start game
             gameOverlay.style.display = 'none';
@@ -418,7 +722,28 @@
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId); // Cancel any previous animation frame
             }
+            startNextWave(); // Start the first wave
             animate();
+        }
+
+        /**
+         * Starts the next wave of enemies.
+         */
+        function startNextWave() {
+            currentWave++;
+            enemiesToSpawnThisWave = 5 + (currentWave * 2); // More enemies each wave
+            enemiesSpawnedThisWave = 0;
+            enemiesDefeatedThisWave = 0;
+            waveStartTime = Date.now();
+            console.log(`Starting Wave ${currentWave} with ${enemiesToSpawnThisWave} enemies!`);
+            overlayTitle.textContent = `Wave ${currentWave} Incoming!`;
+            overlayMessage.textContent = `Prepare for ${enemiesToSpawnThisWave} enemies!`;
+            gameOverlay.style.display = 'flex';
+            startButton.style.display = 'none'; // Hide start button during wave intro
+            setTimeout(() => {
+                gameOverlay.style.display = 'none';
+                startButton.style.display = 'block'; // Show it again for game over
+            }, 2000); // Show wave intro for 2 seconds
         }
 
         /**
@@ -430,16 +755,17 @@
             cancelAnimationFrame(animationFrameId); // Stop the animation loop
 
             gameOverlay.style.display = 'flex';
+            startButton.style.display = 'block'; // Ensure button is visible
             if (won) {
                 overlayTitle.textContent = 'You Win!';
                 overlayTitle.classList.remove('lose');
                 overlayTitle.classList.add('win');
-                overlayMessage.textContent = `Congratulations! You reached a score of ${score}!`;
+                overlayMessage.textContent = `Congratulations! You survived all waves and reached a score of ${score}!`;
             } else {
                 overlayTitle.textContent = 'Game Over!';
                 overlayTitle.classList.remove('win');
                 overlayTitle.classList.add('lose');
-                overlayMessage.textContent = `Your score: ${score}. Better luck next time!`;
+                overlayMessage.textContent = `Your score: ${score}. You survived ${currentWave - 1} waves. Better luck next time!`;
             }
             startButton.textContent = 'Play Again';
         }
@@ -452,15 +778,15 @@
         // Player movement input
         const keys = {};
         window.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
+            keys[e.key.toLowerCase()] = true;
             // Prevent default scroll behavior for arrow keys
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
+            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
                 e.preventDefault();
             }
             updatePlayerMovement();
         });
         window.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
+            keys[e.key.toLowerCase()] = false;
             updatePlayerMovement();
         });
 
@@ -470,10 +796,10 @@
         function updatePlayerMovement() {
             player.dx = 0;
             player.dy = 0;
-            if (keys['ArrowLeft'] || keys['a']) player.dx = -player.speed;
-            if (keys['ArrowRight'] || keys['d']) player.dx = player.speed;
-            if (keys['ArrowUp'] || keys['w']) player.dy = -player.speed;
-            if (keys['ArrowDown'] || keys['s']) player.dy = player.speed;
+            if (keys['arrowleft'] || keys['a']) player.dx = -player.speed;
+            if (keys['arrowright'] || keys['d']) player.dx = player.speed;
+            if (keys['arrowup'] || keys['w']) player.dy = -player.speed;
+            if (keys['arrowdown'] || keys['s']) player.dy = player.speed;
         }
 
         // Player shooting input (mouse click)
@@ -487,14 +813,16 @@
                 const mouseY = e.clientY - rect.top;
 
                 projectiles.push(new Projectile(
-                    player.x + player.width / 2,
-                    player.y + player.height / 2,
+                    player.x + player.width / 2 - 5, // Adjust for projectile width
+                    player.y + player.height / 2 - 5, // Adjust for projectile height
                     mouseX,
                     mouseY,
                     'cyan', // Player projectile color
-                    true
+                    true,
+                    20 // Player projectile damage
                 ));
                 player.lastShotTime = currentTime;
+                playSound(440, 50, 'sine', 0.1); // Shoot sound
             }
         });
 
@@ -506,7 +834,7 @@
         // Display initial overlay
         gameOverlay.style.display = 'flex';
         overlayTitle.textContent = 'Advanced 2D Shooter';
-        overlayMessage.textContent = "Press 'W', 'A', 'S', 'D' or Arrow Keys to move. Click to shoot.";
+        overlayMessage.innerHTML = "Press 'W', 'A', 'S', 'D' or Arrow Keys to move.<br>Click to shoot. Survive the waves of enemies!";
         startButton.textContent = 'Start Game';
 
         // Ensure the animation loop is started after getting the window onload event.
